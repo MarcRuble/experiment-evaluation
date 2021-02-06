@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
+import math
 
 from scipy.stats import shapiro
 from scipy.stats import bartlett
 from scipy.stats import friedmanchisquare
 from pingouin import sphericity
 from pingouin import rm_anova
+from pingouin import wilcoxon
 
 
 # Encapsulates a data set and provides functions for evaluation.
@@ -232,7 +234,7 @@ class DatasetEvaluation:
 
 
     # Compares the values obtained in different groups/conditions
-    # with an ANOVA repeated-measures test. Ignore data not matching
+    # with an ANOVA repeated-measures test. Ignores data not matching
     # the given condition.
     # Use this for repeated-measures data with normal distribution.
     # https://yatani.jp/teaching/doku.php?id=hcistats:anova
@@ -266,6 +268,130 @@ class DatasetEvaluation:
 
         return summary
 
+
+    ######################
+    ### POST-HOC TESTS ###
+    ######################
+
+    # Compares subgroups of the data to each other and determines
+    # how significant their differences are.
+    # If baseline parameter is given, all groups only compared to baseline.
+    # Else all groups are compared pairwise with each other.
+    # Use this as a post-hoc when Friedman's test for repeated-measures
+    # data without normal distributions hints at significant differences.
+    # https://yatani.jp/teaching/doku.php?id=hcistats:kruskalwallis#post-hoc_test
+    # Appropriate for paired/dependant samples:
+    # https://yatani.jp/teaching/doku.php?id=hcistats:wilcoxonsigned
+    # With following assumptions:
+    # https://www.statisticssolutions.com/assumptions-of-the-wilcox-sign-test/
+    ###
+    # value_col: string for column with values
+    # group_col: string for column with groups/conditions to compare
+    # condition: (column:string, value)
+    # baseline: optional value of group_col treated as a baseline
+    # display_result: bool if the result should be displayed
+    # file: string path to location if csv should be saved
+    # returns a summary table with content depending on baseline
+    ###
+    # Uses pingouin.wilcoxon:
+    # https://pingouin-stats.org/generated/pingouin.wilcoxon.html
+    # "The Wilcoxon signed-rank test [1] tests the null hypothesis 
+    # that two related paired samples come from the same distribution."
+    ###
+    def wilcoxon_test(self, value_col, group_col, condition=False, 
+                     baseline=None, display_result=True, file=None):
+        # collect data
+        df = self.__get_condition(self.df, condition)
+
+        # collect group values to compare
+        groups = self.__ordered_values(group_col)
+
+        # baseline gets special treatment
+        if baseline is not None:
+            groups = [x for x in groups if x != baseline]
+            groups.append(baseline)
+
+        # setup dict to construct dataframe
+        if baseline == None:
+            results = {'A':[], 'B':[], 'W':[], 'p':[], 'bonf':[], 'RBC':[], 'CLES':[]}
+        else:
+            results = {}
+            for group in groups:
+                results[group] = []
+
+        # collect all pairs to compare
+        to_compare = []
+        for g1 in groups:
+            for g2 in groups:
+                if g1 != g2 and not (g2,g1) in to_compare:
+                    to_compare.append((g1,g2))
+
+        # compute results
+        if baseline == None:
+            # compare all groups to each other
+            for (g1, g2) in to_compare:
+                # perform wilcoxon
+                s1 = df[df[group_col]==g1][value_col]
+                s2 = df[df[group_col]==g2][value_col]
+                stats = wilcoxon(s1, s2)
+                # read results
+                W = stats['W-val'].values[0]
+                p = stats['p-val'].values[0]
+                bonf = self.__apply_bonferroni(p, len(to_compare))
+                rbc = stats['RBC'].values[0]
+                cles = stats['CLES'].values[0]
+                # results
+                results['A'].append(g1)
+                results['B'].append(g2)
+                results['W'].append(W)
+                results['p'].append(self.__check_p(p))
+                results['bonf'].append(self.__check_p(bonf))
+                results['RBC'].append(round(rbc, 5))
+                results['CLES'].append(round(cles, 5))
+            
+            # create dataframe
+            df_res = pd.DataFrame(results)
+
+        else:
+            # only compare to baseline
+            for (g1, g2) in to_compare:
+                # check if this is compared to baseline
+                if g2 != baseline:
+                    continue
+                
+                # perform wilcoxon
+                s1 = df[df[group_col]==g1][value_col]
+                s2 = df[df[group_col]==g2][value_col]
+                stats = wilcoxon(s1, s2)
+                # read results
+                W = stats['W-val'].values[0]
+                p = stats['p-val'].values[0]
+                bonf = self.__apply_bonferroni(p, len(groups))
+                rbc = stats['RBC'].values[0]
+                cles = stats['CLES'].values[0]
+                # results
+                results[g1].append(self.__check_p(p))
+                results[g1].append(self.__check_p(bonf))
+                results[g1].append(W)
+                results[g1].append(round(rbc, 5))
+            
+            df_res = pd.DataFrame(results, index=pd.Index(['p', 'bonf', 'W', 'r'], name='value'), columns=pd.Index(['XXS', 'XS', 'S', 'L', 'XL', 'XXL'], name='group'))
+
+        if display_result:
+            print("################")
+            print("### Wilcoxon ###")
+            print("################")
+            if not condition is False:
+                print(self.__condition_to_string(condition))
+            display(df_res)
+            print("")
+
+        if file is not None:
+            df_res.to_csv(file)
+
+    # TODO
+    def paired_t_test(self):
+        pass
 
     ##############
     ### HELPER ###
@@ -311,3 +437,23 @@ class DatasetEvaluation:
             result.append(self.__get_condition(data, (group_col, group))[value_col])
             
         return result
+
+    # Returns the bonferroni corrected version of a p-value.
+    # p: p-significance value
+    # num: number of comparisons besides (including) this
+    def __apply_bonferroni(self, p, num):
+        return min(p*num, 1)
+
+    # Returns an annotated version of a p-value.
+    # p: p-significance value
+    def __check_p(self, p):
+        if type(p) == str:
+            return p
+        elif abs(p) <= 0.001:
+            return str(round(p, 5)) + " ***"
+        elif abs(p) <= 0.01:
+            return str(round(p, 3)) + " **"
+        elif abs(p) <= 0.05:
+            return str(round(p, 3)) + " *"
+        else:
+            return str(round(p, 5))
