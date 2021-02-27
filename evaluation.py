@@ -8,6 +8,7 @@ from scipy.stats import friedmanchisquare
 from pingouin import sphericity
 from pingouin import rm_anova
 from pingouin import wilcoxon
+from pingouin import pairwise_ttests
 
 
 # Encapsulates a data set and provides functions for evaluation.
@@ -366,7 +367,7 @@ class DatasetEvaluation:
                 # read results
                 W = stats['W-val'].values[0]
                 p = stats['p-val'].values[0]
-                bonf = self.__apply_bonferroni(p, len(groups))
+                bonf = self.__apply_bonferroni(p, len(groups)-1)
                 rbc = stats['RBC'].values[0]
                 cles = stats['CLES'].values[0]
                 # results
@@ -375,7 +376,7 @@ class DatasetEvaluation:
                 results[g1].append(W)
                 results[g1].append(round(rbc, 5))
             
-            df_res = pd.DataFrame(results, index=pd.Index(['p', 'bonf', 'W', 'r'], name='value'), columns=pd.Index(['XXS', 'XS', 'S', 'L', 'XL', 'XXL'], name='group'))
+            df_res = pd.DataFrame(results, index=pd.Index(['p', 'bonf', 'W', 'r'], name='value'), columns=pd.Index(groups[:-1], name='group'))
 
         if display_result:
             print("################")
@@ -389,9 +390,91 @@ class DatasetEvaluation:
         if file is not None:
             df_res.to_csv(file)
 
-    # TODO
-    def paired_t_test(self):
-        pass
+
+    # Compares subgroups of the data to each other and determines
+    # how significant their differences are.
+    # If baseline parameter is given, all groups only compared to baseline.
+    # Else all groups are compared pairwise with each other.
+    # Use this as a post-hoc when ANOVA for repeated-measures
+    # data with normal distributions hints at significant differences.
+    # Appropriate for paired/dependant samples:
+    # https://yatani.jp/teaching/doku.php?id=hcistats:ttest#a_paired_t_test
+    # With following assumptions:
+    # https://www.statisticssolutions.com/manova-analysis-paired-sample-t-test/
+    ###
+    # value_col: string for column with values
+    # group_col: string for column with groups/conditions to compare
+    # subject_col: string for column with individuals inside the groups
+    # condition: (column:string, value)
+    # baseline: optional value of group_col treated as a baseline
+    # display_result: bool if the result should be displayed
+    # file: string path to location if csv should be saved
+    # returns a summary table with content depending on baseline
+    ###
+    # Uses pingouin.pairwise_ttests:
+    # https://pingouin-stats.org/generated/pingouin.pairwise_ttests.html
+    ###
+    def paired_t_test(self, value_col, group_col, subject_col, condition=False, 
+                    baseline=None, display_result=True, file=None):
+        # collect data
+        df = self.__get_condition(self.df, condition)
+
+        # collect group values to compare
+        groups = self.__ordered_values(group_col)
+
+        # baseline gets special treatment
+        if baseline is not None:
+            groups = [x for x in groups if x != baseline]
+            groups.append(baseline)
+            
+        # perform t tests
+        stat = pairwise_ttests(df, dv=value_col, within=group_col, subject='Participant', parametric=True, padjust='bonf', effsize='cohen')
+        
+        if baseline == None:
+            df_res = stat
+        else:
+            # setup dict to construct dataframe
+            if baseline != None:
+                results = {}
+                for group in groups[:-1]:
+                    results[group] = []
+
+            # iterate over all rows
+            for i, row in stat.iterrows():
+                
+                if row['A'] == baseline or row['B'] == baseline:
+                    # read results
+                    T = float(row['T'])
+                    p = float(row['p-unc'])
+                    d = float(row['cohen'])
+                    c = row['A'] if row['A'] != baseline else row['B']
+
+                    # cohen's d is asymmetric
+                    if row['A'] == baseline:
+                        d = -d
+
+                    # results
+                    results[c].append(self.__check_p(p))
+                    results[c].append(self.__check_p(self.__apply_bonferroni(p, len(groups)-1)))
+                    results[c].append(round(T, 5))
+                    results[c].append(round(d, 5))
+
+            df_res = pd.DataFrame(results,
+                    index=pd.Index(['p', 'bonf', 'T', 'd'], name='value'),
+                    columns=pd.Index(groups[:-1], name='condition'))
+
+        if display_result:
+            print("######################")
+            print("### Paired t-Tests ###")
+            print("######################")
+            if not condition is False:
+                print(self.__condition_to_string(condition))
+            display(df_res)
+            print("")
+
+        if file is not None:
+            df_res.to_csv(file)
+
 
     ##############
     ### HELPER ###
