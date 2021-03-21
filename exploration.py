@@ -2,7 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
+
 # Encapsulates a data set and provides functions for exploration.
+# Source: https://github.com/MarcRuble/experiment-evaluation
+###
 class DatasetExploration:
     
     def __init__(self, df):
@@ -92,6 +95,34 @@ class DatasetExploration:
     #############
     ### PLOTS ###
     #############  
+
+    # Creates a barplot and boxplot next to each other.
+    # x: column name for x axis
+    # y: column names for y axis (string[])
+    # max_y: max value for y axis
+    # func: x[] -> y
+    # condition: (column:string, value)
+    # axes_color: color string
+    # hatches: list of hatch identifiers
+    # file: string path to file location to save plot
+    ###
+    # Prerequisites:
+    # Order and color scheme for x column must be specified.
+    ###
+    def bothplot(self, x, y, max_y=None, func=np.mean, condition=False, 
+                axes_color='black', hatches=['', '.', '/', '..', '//'], 
+                file=None):
+        plt.rcParams["figure.figsize"] = (8,5)
+
+        plt.subplot(1, 2, 1)
+        self.barplot(x, y, max_y=max_y, func=func, condition=condition, axes_color=axes_color, hatches=hatches, 
+            file="bar_{}".format(file) if file is not None else None, show=False)
+        plt.subplot(1, 2, 2)
+        self.boxplot(x, y, max_y=max_y,condition=condition, axes_color=axes_color, hatches=hatches, 
+            file="box_{}".format(file) if file is not None else None, show=False)
+
+        plt.show()
+
     
     # Creates a barplot with given parameters.
     # x: column name for x axis
@@ -108,7 +139,7 @@ class DatasetExploration:
     ###
     def barplot(self, x, y, max_y=None, func=np.mean, condition=False, 
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                file=None):
+                file=None, show=True):
                                              
         df = self.df
         if isinstance(y, str):
@@ -170,7 +201,8 @@ class DatasetExploration:
         if file != None:
             plt.savefig(file, dpi=300, bbox_inches='tight')
             
-        plt.show()
+        if show:
+            plt.show()
         
        
     # Creates a barplot with given parameters.
@@ -187,7 +219,7 @@ class DatasetExploration:
     ###
     def boxplot(self, x, y, max_y=None, condition=False, 
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                file=None):
+                file=None, show=True):
 
         df = self.df
         if isinstance(y, str):
@@ -250,8 +282,9 @@ class DatasetExploration:
         # save the plot
         if file != None:
             plt.savefig(file, dpi=300, bbox_inches='tight')
-            
-        plt.show()
+
+        if show:
+            plt.show()
         
                     
     

@@ -12,6 +12,8 @@ from pingouin import pairwise_ttests
 
 
 # Encapsulates a data set and provides functions for evaluation.
+# Source: https://github.com/MarcRuble/experiment-evaluation
+###
 class DatasetEvaluation:
     
     def __init__(self, df):
@@ -119,8 +121,8 @@ class DatasetEvaluation:
             if not condition:
                 print("{0:}: stat={1:.5}, p={2:.5}".format(column, stat, p))
             else:
-                print("{0:} with ({1:} = {2:}): stat={3:.5}, p={4:.5}".format( 
-                        column, condition[0], condition[1], stat, p))
+                print("{0:} with {1:}: stat={2:.5}, p={3:.5}".format( 
+                        column, condition, stat, p))
             if p > self.alpha:
                 print('--> Gaussian-like')
             else:
@@ -134,6 +136,7 @@ class DatasetEvaluation:
     # separated into groups depending on values in group column.
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
+    # condition: (column:string, value)
     # display_result: bool if the result should be displayed
     # returns test statistic, p value
     ###
@@ -142,15 +145,18 @@ class DatasetEvaluation:
     # "Bartlett’s test tests the null hypothesis that all input samples
     # are from populations with equal variances."
     ###
-    def check_homogene_variances(self, value_col, group_col, display_result=True):
+    def check_homogene_variances(self, value_col, group_col, condition=None, display_result=True):
         # collect data
-        data = self.__get_condition_sets(self.df, value_col, group_col)
+        data = self.__get_condition_sets(self.df, value_col, group_col, condition)
 
         # perform test
         stat, p = bartlett(*data)
         if display_result:
             print("### Homogeneity of Variances ###")
-            print("{0:}: stat={1:.5}, p={2:.5}".format(value_col, stat, p))
+            if not condition:
+                print("{0:} between {1:}: stat={2:.5}, p={3:.5}".format(value_col, group_col, stat, p))
+            else:
+                print("{0:} in {1:} between {2:}: stat={3:.5}, p={4:.5}".format(value_col, condition, group_col, stat, p))
             if p > self.alpha:
                 print('--> Homogene Variances')
             else:
@@ -164,6 +170,7 @@ class DatasetEvaluation:
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
     # subject_col: string for column with subject/participant ids
+    # condition: (column:string, value)
     # display_result: bool if the result should be displayed
     # returns spher (bool), W test statistic, chi2 effect size, dof, p value
     ###
@@ -171,14 +178,20 @@ class DatasetEvaluation:
     # https://pingouin-stats.org/generated/pingouin.sphericity.html
     # "Mauchly and JNS test for sphericity."
     ###
-    def check_sphericity(self, value_col, group_col, subject_col, display_result=True):
+    def check_sphericity(self, value_col, group_col, subject_col, condition=None, display_result=True):
+        data = self.__get_condition(self.df, condition)
+
         # perform test
-        spher, W, chi2, dof, p = sphericity(self.df, value_col, group_col, subject_col)
+        spher, W, chi2, dof, p = sphericity(data, value_col, group_col, subject_col)
 
         if display_result:
             print("### Sphericity ###")
-            print("{0:} between {1:} for {2:}: W={3:.5}, chi2={4:.5}, dof={5:}, p={6:.5}".format(
-                value_col, group_col, subject_col, W, chi2, dof, p))
+            if not condition:
+                print("{0:} between {1:} for {2:}: W={3:.5}, chi2={4:.5}, dof={5:}, p={6:.5}".format(
+                    value_col, group_col, subject_col, W, chi2, dof, p))
+            else:
+                print("{0:} in {1:} between {2:} for {3:}: W={4:.5}, chi2={5:.5}, dof={6:}, p={7:.5}".format(
+                    value_col, condition, group_col, subject_col, W, chi2, dof, p))
             if spher:
                 print('--> Sphericity given')
             else:
@@ -495,9 +508,13 @@ class DatasetEvaluation:
         
     # Returns the rows which fulfills the condition.
     # data: dataframe
-    # conditions: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     def __get_condition(self, data, condition):
         if not condition:
+            return data
+        elif isinstance(condition, list):
+            for single_cond in condition:
+                data = self.__get_condition(data, single_cond)
             return data
         else:
             return data[data[condition[0]]==condition[1]]
@@ -505,7 +522,7 @@ class DatasetEvaluation:
     # Returns a string representation of a condition.
     # condition: (column:string, value)
     def __condition_to_string(self, condition):
-        return "{} = {}".format(condition[0], condition[1])
+        return str(condition)
 
     # Returns the subset of values from a value column
     # separated by their value a group column.
@@ -513,7 +530,8 @@ class DatasetEvaluation:
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
     # condition: (column:string, value)
-    def __get_condition_sets(self, data, value_col, group_col):
+    def __get_condition_sets(self, data, value_col, group_col, condition=None):
+        data = self.__get_condition(data, condition)
         result = []
         groups = self.__ordered_values(group_col)
         for group in groups:
