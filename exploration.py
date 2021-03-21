@@ -27,7 +27,7 @@ class DatasetExploration:
     # column: string
     # dict: old -> new value
     def replace(self, column, dict):
-        self.df[column].replace(dict)
+        self.df[column].replace(dict, inplace=True)
         
     # Adds a new column which is the mean of given columns.
     # columns: list of strings
@@ -48,7 +48,7 @@ class DatasetExploration:
     # Displays the data set in a sorted fashion.
     # column: string
     # ascending: bool
-    def display_sorted(self, column, ascending):
+    def display_sorted(self, column, ascending=True):
         df = self.df
         display(df.sort_values(column, ascending=ascending))
         
@@ -67,7 +67,7 @@ class DatasetExploration:
     # Returns the count of a property's values.
     # property: column to count the available values
     # index: column to use as index
-    def countsByProperty(self, property, index):
+    def counts_by_property(self, property, index):
         df = self.df
         return df.groupby([property]).count()[index]
         
@@ -269,6 +269,17 @@ class DatasetExploration:
             for patch, color in zip(bplots[i]['boxes'], self.__get_colors(x)):
                 patch.set_facecolor(color)
                 patch.set(hatch=hatches[i])
+
+        # set colors
+        axes = plt.gca()
+        axes.spines['bottom'].set_color(axes_color)
+        axes.spines['top'].set_color(axes_color)
+        axes.spines['left'].set_color(axes_color)
+        axes.spines['right'].set_color(axes_color)
+        axes.xaxis.label.set_color(axes_color)
+        axes.yaxis.label.set_color(axes_color)
+        axes.tick_params(axis='x', colors=axes_color)
+        axes.tick_params(axis='y', colors=axes_color)
 
         # configure legend or y label
         if len(y) > 1:
