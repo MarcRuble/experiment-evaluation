@@ -101,25 +101,35 @@ class DatasetExploration:
     # y: column names for y axis (string[])
     # max_y: max value for y axis
     # func: x[] -> y
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
+    # x_label: label at x axis
+    # y_legend: label in legend (if legend is used, multiple y) for y-axes
+    # y_label: label for y-axes
     # axes_color: color string
     # hatches: list of hatch identifiers
+    # bar_width: width of the bars
     # file: string path to file location to save plot
+    # show: whether to display the output in the notebook
     ###
     # Prerequisites:
     # Order and color scheme for x column must be specified.
     ###
     def bothplot(self, x, y, max_y=None, func=np.mean, condition=False, 
+                x_label=None, y_legend=None, y_label=None,
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                file=None):
+                bar_width=None, file=None, show=True):
         plt.rcParams["figure.figsize"] = (8,5)
 
         plt.subplot(1, 2, 1)
-        self.barplot(x, y, max_y=max_y, func=func, condition=condition, axes_color=axes_color, hatches=hatches, 
-            file="bar_{}".format(file) if file is not None else None, show=False)
+        self.barplot(x, y, max_y=max_y, func=func, condition=condition, 
+            x_label=x_label, y_legend=y_legend, y_label=y_label,
+            axes_color=axes_color, hatches=hatches, bar_width=bar_width,
+            file="bar_{}".format(file) if file is not None else None, show=show)
         plt.subplot(1, 2, 2)
-        self.boxplot(x, y, max_y=max_y,condition=condition, axes_color=axes_color, hatches=hatches, 
-            file="box_{}".format(file) if file is not None else None, show=False)
+        self.boxplot(x, y, max_y=max_y,condition=condition, 
+            x_label=x_label, y_legend=y_legend, y_label=y_label,
+            axes_color=axes_color, hatches=hatches, bar_width=bar_width,
+            file="box_{}".format(file) if file is not None else None, show=show)
 
         plt.show()
 
@@ -129,21 +139,35 @@ class DatasetExploration:
     # y: column names for y axis (string[])
     # max_y: max value for y axis
     # func: x[] -> y
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
+    # x_label: label at x axis
+    # y_legend: label in legend (if legend is used, multiple y) for y-axes
+    # y_label: label for y-axes
     # axes_color: color string
     # hatches: list of hatch identifiers
+    # bar_width: width of the bars
     # file: string path to file location to save plot
+    # show: whether to display the output in the notebook
     ###
     # Prerequisites:
     # Order and color scheme for x column must be specified.
     ###
     def barplot(self, x, y, max_y=None, func=np.mean, condition=False, 
+                x_label=None, y_legend=None, y_label=None,
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                file=None, show=True):
+                bar_width=None, file=None, show=True):
                                              
         df = self.df
         if isinstance(y, str):
             y = [y]
+
+        if x_label is None:
+            x_label = x
+        if y_legend is None:
+            y_legend = y
+
+        if isinstance(y_legend, str):
+            y_legend = [y_legend]
         
         # collect y values
         x_vals = self.order_table[x]
@@ -153,14 +177,15 @@ class DatasetExploration:
             # setup new empty list for this y-type
             values = []
             for x_val in x_vals:
-                df_c = self.__get_condition(condition)
+                df_c = self.__get_condition(df, condition)
                 values.append(func(df_c[df_c[x]==x_val][yi]))
             
             # save list
             y_vals.append(values)
             
         # determine x positions for every y-type
-        bar_width = 1 / len(y) - 0.05
+        if bar_width is None:
+            bar_width = 1 / len(y) - 0.05
         x_ticks = []
         
         for i in range(0, len(y)):
@@ -170,7 +195,7 @@ class DatasetExploration:
                 x_ticks.append([xj + bar_width for xj in x_ticks[i-1]])
         
         # make the plot
-        plt.xlabel(x)
+        plt.xlabel(x_label)
         plt.xticks([r + (len(y)-1)*(bar_width/2) for r in range(len(x_vals))], x_vals)
         
         if max_y is not None:
@@ -192,11 +217,16 @@ class DatasetExploration:
         axes.tick_params(axis='y', colors=axes_color)
         
         # configure legend or y label
-        if len(y) > 1:
-            plt.legend()
+        if len(y_legend) > 1:
+            plt.legend(y_legend)
+            if y_label != None:
+                plt.ylabel(y_label)
         else:
-            plt.ylabel(y[0])
-        
+            if y_label != None:
+                plt.ylabel(y_label)
+            else:
+                plt.ylabel(y_legend[0])
+                
         # save the plot
         if file != None:
             plt.savefig(file, dpi=300, bbox_inches='tight')
@@ -205,25 +235,39 @@ class DatasetExploration:
             plt.show()
         
        
-    # Creates a barplot with given parameters.
+    # Creates a boxplot with given parameters.
     # x: column name for x axis
-    # y: column names for y axis (string[])
+    # y: column names for y axis (string[]) or single column name
     # max_y: max value for y axis
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
+    # x_label: label at x axis
+    # y_legend: label in legend (if legend is used, multiple y) for y-axes
+    # y_label: label for y-axes
     # axes_color: color string
     # hatches: list of hatch identifiers
+    # bar_width: width of the boxes
     # file: string path to file location to save plot
+    # show: whether to display the output in the notebook
     ###
     # Prerequisites:
     # Order for x must be specified.
     ###
     def boxplot(self, x, y, max_y=None, condition=False, 
+                x_label=None, y_legend=None, y_label=None,
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                file=None, show=True):
+                bar_width=None, file=None, show=True):
 
         df = self.df
         if isinstance(y, str):
             y = [y]
+
+        if x_label is None:
+            x_label = x
+        if y_legend is None:
+            y_legend = y
+
+        if isinstance(y_legend, str):
+            y_legend = [y_legend]
 
         # collect y values
         x_vals = self.order_table[x]
@@ -233,14 +277,15 @@ class DatasetExploration:
             # setup new empty list for this y-type
             values = []
             for x_val in x_vals:
-                df_c = self.__get_condition(condition)
+                df_c = self.__get_condition(df, condition)
                 values.append(df_c[df_c[x]==x_val][yi])
             
             # save list
             y_vals.append(values)
 
         # determine x positions for every y-type
-        bar_width = 1 / len(y) - 0.05
+        if bar_width is None:
+            bar_width = 1 / len(y) - 0.05
         x_ticks = []
         
         for i in range(0, len(y)):
@@ -253,7 +298,7 @@ class DatasetExploration:
         medianprops = dict(linestyle='-', linewidth=1.5, color='firebrick')
 
         # make the plot
-        plt.xlabel(x)
+        plt.xlabel(x_label)
         plt.xticks([r + (len(y)-1)*(bar_width/2) for r in range(len(x_vals))], x_vals)
         
         if max_y is not None:
@@ -282,13 +327,18 @@ class DatasetExploration:
         axes.tick_params(axis='y', colors=axes_color)
 
         # configure legend or y label
-        if len(y) > 1:
+        if len(y_legend) > 1:
             artists = []
             for i in range(len(bplots)):
                 artists.append(bplots[i]['boxes'][0])
-            plt.gca().legend(artists, y)
+            plt.gca().legend(artists, y_legend)
+            if y_label != None:
+                plt.ylabel(y_label)
         else:
-            plt.ylabel(y[0])
+            if y_label != None:
+                plt.ylabel(y_label)
+            else:
+                plt.ylabel(y_legend[0])
         
         # save the plot
         if file != None:
@@ -317,10 +367,14 @@ class DatasetExploration:
             return self.color_table['__default']
         
     # Returns the rows which fulfills the condition.
-    # condition: (column:string, value)
-    def __get_condition(self, condition):
-        df = self.df
+    # data: dataframe
+    # condition: (column:string, value) or list of (column:string, value)
+    def __get_condition(self, data, condition):
         if not condition:
-            return df
+            return data
+        elif isinstance(condition, list):
+            for single_cond in condition:
+                data = self.__get_condition(data, single_cond)
+            return data
         else:
-            return df[df[condition[0]]==condition[1]]
+            return data[data[condition[0]]==condition[1]]

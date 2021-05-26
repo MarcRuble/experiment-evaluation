@@ -19,6 +19,7 @@ class DatasetEvaluation:
     def __init__(self, df):
         self.df = df
         self.alpha = 0.05
+        self.precision = 5
         self.order_table = {}
     
     
@@ -75,7 +76,7 @@ class DatasetEvaluation:
     # Returns the count of a property's values.
     # property: column to count the available values
     # index: column to use as index
-    def countsByProperty(self, property, index):
+    def counts_by_property(self, property, index):
         df = self.df
         return df.groupby([property]).count()[index]
         
@@ -96,6 +97,13 @@ class DatasetEvaluation:
     def set_alpha(self, alpha):
         self.alpha = alpha
 
+    # Sets the number of positions after decimal
+    # point to print and include in tables.
+    # precision: new number of positions
+    # default is 5
+    def set_precision(self, precision):
+        self.precision = precision
+
 
     ##############
     ### CHECKS ###
@@ -104,7 +112,7 @@ class DatasetEvaluation:
     # Checks for a normal distribution of the values in a column
     # which fulfill a given condition.
     # column: string
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # display_result: bool if the result should be displayed
     # returns test statistic, p value
     ###
@@ -113,12 +121,12 @@ class DatasetEvaluation:
     # "The Shapiro-Wilk test tests the null hypothesis that the data was 
     # drawn from a normal distribution."
     ###
-    def check_normal_distribution(self, column, condition=None, display_result=True):
+    def check_normal_distribution(self, column, condition=False, display_result=True):
         data = self.__get_condition(self.df, condition)[column]
         stat, p = shapiro(data)
         if display_result:
             print("### Normal Distribution ###")
-            if not condition:
+            if condition is False:
                 print("{0:}: stat={1:.5}, p={2:.5}".format(column, stat, p))
             else:
                 print("{0:} with {1:}: stat={2:.5}, p={3:.5}".format( 
@@ -136,7 +144,7 @@ class DatasetEvaluation:
     # separated into groups depending on values in group column.
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # display_result: bool if the result should be displayed
     # returns test statistic, p value
     ###
@@ -145,7 +153,7 @@ class DatasetEvaluation:
     # "Bartlett’s test tests the null hypothesis that all input samples
     # are from populations with equal variances."
     ###
-    def check_homogene_variances(self, value_col, group_col, condition=None, display_result=True):
+    def check_homogene_variances(self, value_col, group_col, condition=False, display_result=True):
         # collect data
         data = self.__get_condition_sets(self.df, value_col, group_col, condition)
 
@@ -153,7 +161,7 @@ class DatasetEvaluation:
         stat, p = bartlett(*data)
         if display_result:
             print("### Homogeneity of Variances ###")
-            if not condition:
+            if condition is False:
                 print("{0:} between {1:}: stat={2:.5}, p={3:.5}".format(value_col, group_col, stat, p))
             else:
                 print("{0:} in {1:} between {2:}: stat={3:.5}, p={4:.5}".format(value_col, condition, group_col, stat, p))
@@ -170,7 +178,7 @@ class DatasetEvaluation:
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
     # subject_col: string for column with subject/participant ids
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # display_result: bool if the result should be displayed
     # returns spher (bool), W test statistic, chi2 effect size, dof, p value
     ###
@@ -178,7 +186,7 @@ class DatasetEvaluation:
     # https://pingouin-stats.org/generated/pingouin.sphericity.html
     # "Mauchly and JNS test for sphericity."
     ###
-    def check_sphericity(self, value_col, group_col, subject_col, condition=None, display_result=True):
+    def check_sphericity(self, value_col, group_col, subject_col, condition=False, display_result=True):
         data = self.__get_condition(self.df, condition)
 
         # perform test
@@ -186,7 +194,7 @@ class DatasetEvaluation:
 
         if display_result:
             print("### Sphericity ###")
-            if not condition:
+            if condition is False:
                 print("{0:} between {1:} for {2:}: W={3:.5}, chi2={4:.5}, dof={5:}, p={6:.5}".format(
                     value_col, group_col, subject_col, W, chi2, dof, p))
             else:
@@ -214,7 +222,7 @@ class DatasetEvaluation:
     ###
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # display_result: bool if the result should be displayed
     # returns test statistic, p value
     ###
@@ -256,7 +264,7 @@ class DatasetEvaluation:
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
     # subject_col: string for column with subject/participant ids
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # display_result: bool if the result should be displayed
     # returns a summary table with attributes like:
     # F (test statistic), p-unc, p-GG-corr (for lack of sphericity),
@@ -301,7 +309,7 @@ class DatasetEvaluation:
     ###
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # baseline: optional value of group_col treated as a baseline
     # display_result: bool if the result should be displayed
     # file: string path to location if csv should be saved
@@ -418,7 +426,7 @@ class DatasetEvaluation:
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
     # subject_col: string for column with individuals inside the groups
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     # baseline: optional value of group_col treated as a baseline
     # display_result: bool if the result should be displayed
     # file: string path to location if csv should be saved
@@ -520,7 +528,7 @@ class DatasetEvaluation:
             return data[data[condition[0]]==condition[1]]
 
     # Returns a string representation of a condition.
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     def __condition_to_string(self, condition):
         return str(condition)
 
@@ -529,7 +537,7 @@ class DatasetEvaluation:
     # data: dataframe
     # value_col: string for column with values
     # group_col: string for column with groups/conditions to compare
-    # condition: (column:string, value)
+    # condition: (column:string, value) or list of (column:string, value)
     def __get_condition_sets(self, data, value_col, group_col, condition=None):
         data = self.__get_condition(data, condition)
         result = []
@@ -550,11 +558,11 @@ class DatasetEvaluation:
     def __check_p(self, p):
         if type(p) == str:
             return p
-        elif abs(p) <= 0.001:
-            return str(round(p, 5)) + " ***"
-        elif abs(p) <= 0.01:
-            return str(round(p, 3)) + " **"
-        elif abs(p) <= 0.05:
-            return str(round(p, 3)) + " *"
+        elif abs(p) <= min(self.alpha, 0.001):
+            return str(round(p, self.precision)) + " ***"
+        elif abs(p) <= min(self.alpha, 0.01):
+            return str(round(p, self.precision)) + " **"
+        elif abs(p) <= self.alpha:
+            return str(round(p, self.precision)) + " *"
         else:
-            return str(round(p, 5))
+            return str(round(p, self.precision))
