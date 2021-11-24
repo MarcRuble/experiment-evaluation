@@ -6,6 +6,7 @@ import scipy.stats as stats
 
 # Encapsulates a data set and provides functions for exploration.
 # Source: https://github.com/MarcRuble/experiment-evaluation
+# Version: 24.11.2021
 ###
 class DatasetExploration:
     
@@ -192,8 +193,6 @@ class DatasetExploration:
             
             # save list
             y_vals.append(values)
-
-        print(std_errors)
             
         # determine x positions for every y-type
         if bar_width is None:

@@ -13,6 +13,7 @@ from pingouin import pairwise_ttests
 
 # Encapsulates a data set and provides functions for evaluation.
 # Source: https://github.com/MarcRuble/experiment-evaluation
+# Version: 24.11.2021
 ###
 class DatasetEvaluation:
     
