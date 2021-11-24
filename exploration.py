@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import scipy.stats as stats
 
 
 # Encapsulates a data set and provides functions for exploration.
@@ -121,15 +122,15 @@ class DatasetExploration:
         plt.rcParams["figure.figsize"] = (8,5)
 
         plt.subplot(1, 2, 1)
-        self.barplot(x, y, max_y=max_y, func=func, condition=condition, 
+        self.barplot(x, y, func=func, condition=condition, 
             x_label=x_label, y_legend=y_legend, y_label=y_label,
             axes_color=axes_color, hatches=hatches, bar_width=bar_width,
-            file="bar_{}".format(file) if file is not None else None, show=show)
+            file=self.__prefix_filename(file, "bar_") if file is not None else None, show=show)
         plt.subplot(1, 2, 2)
         self.boxplot(x, y, max_y=max_y,condition=condition, 
             x_label=x_label, y_legend=y_legend, y_label=y_label,
             axes_color=axes_color, hatches=hatches, bar_width=bar_width,
-            file="box_{}".format(file) if file is not None else None, show=show)
+            file=self.__prefix_filename(file, "box_") if file is not None else None, show=show)
 
         plt.show()
 
@@ -137,25 +138,27 @@ class DatasetExploration:
     # Creates a barplot with given parameters.
     # x: column name for x axis
     # y: column names for y axis (string[])
-    # max_y: max value for y axis
     # func: x[] -> y
     # condition: (column:string, value) or list of (column:string, value)
     # x_label: label at x axis
     # y_legend: label in legend (if legend is used, multiple y) for y-axes
     # y_label: label for y-axes
+    # y_ticks: ticks along the y-axis (array of positions)
     # axes_color: color string
     # hatches: list of hatch identifiers
     # bar_width: width of the bars
+    # padding: between the bars
+    # show_error_bars: bool if error bars should be shown
     # file: string path to file location to save plot
     # show: whether to display the output in the notebook
     ###
     # Prerequisites:
     # Order and color scheme for x column must be specified.
     ###
-    def barplot(self, x, y, max_y=None, func=np.mean, condition=False, 
-                x_label=None, y_legend=None, y_label=None,
+    def barplot(self, x, y, func=np.mean, condition=False, 
+                x_label=None, y_legend=None, y_label=None, y_ticks=None,
                 axes_color='black', hatches=['', '.', '/', '..', '//'], 
-                bar_width=None, file=None, show=True):
+                bar_width=None, padding=0, show_error_bars=False, file=None, show=True):
                                              
         df = self.df
         if isinstance(y, str):
@@ -172,38 +175,59 @@ class DatasetExploration:
         # collect y values
         x_vals = self.order_table[x]
         y_vals = []
+
+        std_errors = None
+        if show_error_bars:
+            std_errors = []
         
         for yi in y:
             # setup new empty list for this y-type
             values = []
             for x_val in x_vals:
                 df_c = self.__get_condition(df, condition)
-                values.append(func(df_c[df_c[x]==x_val][yi]))
+                y_val = df_c[df_c[x]==x_val][yi]
+                values.append(func(y_val))
+                if show_error_bars:
+                    std_errors.append(stats.sem(y_val))
             
             # save list
             y_vals.append(values)
+
+        print(std_errors)
             
         # determine x positions for every y-type
         if bar_width is None:
             bar_width = 1 / len(y) - 0.05
+
+        # first determine where the groups of bars start
+        if len(y) > 1:
+            x_ticks_starts = [r * len(y) * (bar_width + padding + 0.1) for r in range(len(x_vals))]
+        else:
+            x_ticks_starts = [r * len(y) * (bar_width + padding) for r in range(len(x_vals))]
+
         x_ticks = []
         
         for i in range(0, len(y)):
             if i == 0:
-                x_ticks.append(np.arange(len(x_vals)))
+                # one tick per condition, first bar of each bar group
+                x_ticks.append(x_ticks_starts)
             else:
-                x_ticks.append([xj + bar_width for xj in x_ticks[i-1]])
+                # i-th tick per condition
+                x_ticks.append([xj + bar_width + padding for xj in x_ticks[i-1]])
         
         # make the plot
         plt.xlabel(x_label)
-        plt.xticks([r + (len(y)-1)*(bar_width/2) for r in range(len(x_vals))], x_vals)
+        if len(y) > 1:
+            plt.xticks([r + (len(y)-1)*((bar_width+padding)/2) for r in x_ticks_starts], x_vals)
+        else:
+            plt.xticks(x_ticks_starts, x_vals)
         
-        if max_y is not None:
-            plt.yticks(np.arange(max_y+1))
+        if y_ticks is not None:
+            plt.yticks(y_ticks)
 
         for i in range(0, len(y)):
-            plt.bar(x_ticks[i], y_vals[i], color=self.__get_colors(x),
-                    width=bar_width, edgecolor='white', label=y[i], hatch=hatches[i])
+            plt.bar(x_ticks[i], y_vals[i], color=self.__get_colors(x), yerr=std_errors, capsize=4,
+                    width=bar_width, linewidth=0, label=y[i], hatch=hatches[i])
         
         # set colors
         axes = plt.gca()
@@ -378,3 +402,13 @@ class DatasetExploration:
             return data
         else:
             return data[data[condition[0]]==condition[1]]
+
+    # Returns a modified version of the path with the prefix before filename.
+    # path: string (path with / separator)
+    # prefix: string
+    def __prefix_filename(self, path, prefix):
+        index = path.rfind('/')
+        if index >= 0:
+            return path[:index+1] + prefix + path[index+1:]
+        else:
+            return prefix + path

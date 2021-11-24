@@ -36,13 +36,19 @@ class DatasetEvaluation:
     # column: string
     # dict: old -> new value
     def replace(self, column, dict):
-        self.df[column].replace(dict)
+        self.df[column].replace(dict, inplace=True)
         
     # Adds a new column which is the mean of given columns.
     # columns: list of strings
     # name: for new column
     def add_mean(self, columns, name):
         self.df[name] = self.df[columns].mean(axis=1)
+
+    # Sort the underlying dataframe regarding the given column.
+    # columns: string or list of strings
+    # ascending: bool
+    def sort(self, columns, ascending=True):
+        self.df.sort_values(by=columns, ascending=ascending, inplace=True)
         
      
     ###################
@@ -313,6 +319,7 @@ class DatasetEvaluation:
     # baseline: optional value of group_col treated as a baseline
     # display_result: bool if the result should be displayed
     # file: string path to location if csv should be saved
+    # display_info: display additional info like condition (if display_result)
     # returns a summary table with content depending on baseline
     ###
     # Uses pingouin.wilcoxon:
@@ -321,7 +328,7 @@ class DatasetEvaluation:
     # that two related paired samples come from the same distribution."
     ###
     def wilcoxon_test(self, value_col, group_col, condition=False, 
-                     baseline=None, display_result=True, file=None):
+                     baseline=None, display_result=True, file=None, display_info=True):
         # collect data
         df = self.__get_condition(self.df, condition)
 
@@ -400,11 +407,12 @@ class DatasetEvaluation:
             df_res = pd.DataFrame(results, index=pd.Index(['p', 'bonf', 'W', 'r'], name='value'), columns=pd.Index(groups[:-1], name='group'))
 
         if display_result:
-            print("################")
-            print("### Wilcoxon ###")
-            print("################")
-            if not condition is False:
-                print(self.__condition_to_string(condition))
+            if display_info:
+                print("################")
+                print("### Wilcoxon ###")
+                print("################")
+                if not condition is False:
+                    print(self.__condition_to_string(condition))
             display(df_res)
             print("")
 
